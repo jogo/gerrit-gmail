@@ -1,0 +1,8 @@
+[gmail]
+email=email@gmail.com
+client_id=123456789.apps.googleusercontent.com
+client_secret=secret
+refresh_token=big-token
+
+[gerrit]
+username=your-username

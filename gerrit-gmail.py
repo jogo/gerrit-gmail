@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+#TODO(jogo) Add copyright
+
+"""Tool to mark emails of merged gerrit patches as read."""
+#TODO(jogo) run flake8
+
+import oauth2
+
+import ConfigParser
+import email
+import imaplib
+import optparse
+import json
+import sys
+import subprocess
+
+def run(cmd):
+    print cmd
+    obj = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           shell=True)
+    (out, _) = obj.communicate()
+    if obj.returncode != 0:
+        print "The command '%s' terminated with an error." % cmd
+        sys.exit(obj.returncode)
+    return out
+
+def get_merged_review_ids(username, project='openstack/nova'):
+    #TODO(jogo) look at all watched projects, don't hard code project in
+    #TODO(jogo) un-hardcode server address
+    blob = run("ssh %s@review.openstack.org -p 29418 gerrit query "
+               "--format=JSON project:%s status:merged" % (username, project))
+    merged_ids = []
+    for line in blob.strip().split('\n'):
+        review = json.loads(line)
+        if "id" not in review:
+            continue
+        merged_ids.append(review["id"])
+    return merged_ids
+
+def connect_to_gmail(email, client_id, client_secret, refresh_token):
+    access_token = None
+    print "connecting to %s" % email
+
+    if access_token is None:
+        response = oauth2.RefreshToken(client_id, client_secret, refresh_token)
+        access_token = response['access_token']
+        print "New Access Token: %s" % access_token
+        print "Expires in: %s" % response['expires_in']
+
+
+    #before passing into IMAPLib access token needs to be converted into string
+    oauth2String = oauth2.GenerateOAuth2String(
+            email,
+            access_token,
+            base64_encode=False)
+
+    mail = imaplib.IMAP4_SSL('imap.gmail.com')
+    try:
+        mail.authenticate('XOAUTH2', lambda x: oauth2String)
+    except Exception:
+        print "Bad access token"
+        #TODO(jogo): on bad token delete cached token, use cached token
+        raise
+    return mail
+
+
+def get_email_ids(mail, tag='OpenStack/review/nova'):
+    #TODO(jogo) this should be in a config file.
+    #TODO(jogo): make all reviews -- OpenStack/review
+    #tag = "OpenStack/review/nova"
+    mail.select(tag)
+    result, data = mail.search(None, "UNSEEN")
+    id_list = data[0].split()
+    return id_list
+
+
+if __name__=="__main__":
+    configparser = ConfigParser.ConfigParser()
+    configparser.read('gerrit-gmail.conf')
+
+    optparser = optparse.OptionParser()
+    optparser.add_option('-r', '--read', action='store_true',
+                         help='mark emails as read')
+    options, args = optparser.parse_args()
+
+    merged_ids = get_merged_review_ids(configparser.get("gerrit","username"))
+    mail = connect_to_gmail(
+            configparser.get("gmail","email"),
+            configparser.get("gmail","client_id"),
+            configparser.get("gmail","client_secret"),
+            configparser.get("gmail","refresh_token"))
+
+    # List closed so don't display multiple times
+    closed = set()
+    print "Closed patches:"
+    for email_id in get_email_ids(mail):
+        result, data = mail.fetch(email_id, "(BODY.PEEK[HEADER])")
+        message = email.message_from_string(data[0][1])
+        change_id = message['X-Gerrit-Change-Id']
+        if change_id in merged_ids:
+            if options.read:
+                mail.fetch(email_id, "(RFC822)") #mark as read
+            if change_id not in closed:
+                closed.add(change_id)
+                print "%s: '%s'" % ( message['X-Gerrit-ChangeURL'], message['Subject'].replace('\r\n',''))
