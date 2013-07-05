@@ -24,11 +24,10 @@ def run(cmd):
         sys.exit(obj.returncode)
     return out
 
-def get_merged_review_ids(username, project='openstack/nova'):
-    #TODO(jogo) look at all watched projects, don't hard code project in
+def get_merged_review_ids(username):
     #TODO(jogo) un-hardcode server address
     blob = run("ssh %s@review.openstack.org -p 29418 gerrit query "
-               "--format=JSON project:%s status:merged" % (username, project))
+               "--format=JSON is:watched status:merged" % (username))
     merged_ids = []
     for line in blob.strip().split('\n'):
         review = json.loads(line)
@@ -64,7 +63,7 @@ def connect_to_gmail(email, client_id, client_secret, refresh_token):
     return mail
 
 
-def get_email_ids(mail, tag='OpenStack/review/nova'):
+def get_email_ids(mail, tag='OpenStack/review'):
     #TODO(jogo) this should be in a config file.
     #TODO(jogo): make all reviews -- OpenStack/review
     #tag = "OpenStack/review/nova"
