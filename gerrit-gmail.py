@@ -24,10 +24,10 @@ def run(cmd):
         sys.exit(obj.returncode)
     return out
 
-def get_merged_review_ids(username):
+def get_review_ids(username, status):
     #TODO(jogo) un-hardcode server address
     blob = run("ssh %s@review.openstack.org -p 29418 gerrit query "
-               "--format=JSON is:watched status:merged" % (username))
+               "--format=JSON is:watched status:%s" % (username, status))
     merged_ids = []
     for line in blob.strip().split('\n'):
         review = json.loads(line)
@@ -80,9 +80,14 @@ if __name__=="__main__":
     optparser = optparse.OptionParser()
     optparser.add_option('-r', '--read', action='store_true',
                          help='mark emails as read')
+    optparser.add_option('-a', '--abandoned', action='store_true',
+                         help='get abandoned patches, instead of merged')
     options, args = optparser.parse_args()
 
-    merged_ids = get_merged_review_ids(configparser.get("gerrit","username"))
+    status = 'merged'
+    if options.abandoned:
+        status = 'abandoned'
+    merged_ids = get_review_ids(configparser.get("gerrit","username"), status=status)
     mail = connect_to_gmail(
             configparser.get("gmail","email"),
             configparser.get("gmail","client_id"),
