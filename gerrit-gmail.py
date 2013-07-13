@@ -43,8 +43,8 @@ def connect_to_gmail(email, client_id, client_secret, refresh_token):
     if access_token is None:
         response = oauth2.RefreshToken(client_id, client_secret, refresh_token)
         access_token = response['access_token']
-        print "New Access Token: %s" % access_token
-        print "Expires in: %s" % response['expires_in']
+        #print "New Access Token: %s" % access_token
+        #print "Expires in: %s" % response['expires_in']
 
 
     #before passing into IMAPLib access token needs to be converted into string
@@ -107,3 +107,4 @@ if __name__=="__main__":
             if change_id not in closed:
                 closed.add(change_id)
                 print "%s: '%s'" % ( message['X-Gerrit-ChangeURL'], message['Subject'].replace('\r\n',''))
+    print "total: %s" % len(closed)
