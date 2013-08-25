@@ -1,22 +1,36 @@
 #!/usr/bin/env python
-#TODO(jogo) Add copyright
+
+# Copyright 2013 Joe Gordon
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
 
 """Tool to mark emails of merged gerrit patches as read."""
-#TODO(jogo) run flake8
-
-import oauth2
 
 import ConfigParser
 import email
 import imaplib
-import optparse
 import json
-import sys
+import optparse
 import subprocess
+import sys
+
+import oauth2
+
 
 def run(cmd):
     print cmd
-    obj = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    obj = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT,
                            shell=True)
     (out, _) = obj.communicate()
     if obj.returncode != 0:
@@ -24,8 +38,9 @@ def run(cmd):
         sys.exit(obj.returncode)
     return out
 
+
 def get_review_ids(username, status):
-    #TODO(jogo) un-hardcode server address
+    # TODO(jogo) un-hardcode server address
     blob = run("ssh %s@review.openstack.org -p 29418 gerrit query "
                "--format=JSON is:watched status:%s" % (username, status))
     merged_ids = []
@@ -36,6 +51,7 @@ def get_review_ids(username, status):
         merged_ids.append(review["id"])
     return merged_ids
 
+
 def connect_to_gmail(email, client_id, client_secret, refresh_token):
     access_token = None
     print "connecting to %s" % email
@@ -43,22 +59,22 @@ def connect_to_gmail(email, client_id, client_secret, refresh_token):
     if access_token is None:
         response = oauth2.RefreshToken(client_id, client_secret, refresh_token)
         access_token = response['access_token']
-        #print "New Access Token: %s" % access_token
-        #print "Expires in: %s" % response['expires_in']
+        # print "New Access Token: %s" % access_token
+        # print "Expires in: %s" % response['expires_in']
 
-
-    #before passing into IMAPLib access token needs to be converted into string
+    # before passing into IMAPLib access token needs must be converted into
+    # string
     oauth2String = oauth2.GenerateOAuth2String(
-            email,
-            access_token,
-            base64_encode=False)
+        email,
+        access_token,
+        base64_encode=False)
 
     mail = imaplib.IMAP4_SSL('imap.gmail.com')
     try:
         mail.authenticate('XOAUTH2', lambda x: oauth2String)
     except Exception:
         print "Bad access token"
-        #TODO(jogo): on bad token delete cached token, use cached token
+        # TODO(jogo): on bad token delete cached token, use cached token
         raise
     return mail
 
@@ -72,7 +88,7 @@ def get_email_ids(mail, tag='OpenStack/review'):
     return ','.join(id_list)
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     configparser = ConfigParser.ConfigParser()
     configparser.read('gerrit-gmail.conf')
 
@@ -86,12 +102,13 @@ if __name__=="__main__":
     status = 'merged'
     if options.abandoned:
         status = 'abandoned'
-    merged_ids = get_review_ids(configparser.get("gerrit","username"), status=status)
+    merged_ids = get_review_ids(configparser.get("gerrit", "username"),
+                                status=status)
     mail = connect_to_gmail(
-            configparser.get("gmail","email"),
-            configparser.get("gmail","client_id"),
-            configparser.get("gmail","client_secret"),
-            configparser.get("gmail","refresh_token"))
+        configparser.get("gmail", "email"),
+        configparser.get("gmail", "client_id"),
+        configparser.get("gmail", "client_secret"),
+        configparser.get("gmail", "refresh_token"))
 
     # List closed so don't display multiple times
     closed = set()
@@ -106,8 +123,9 @@ if __name__=="__main__":
         change_id = message['X-Gerrit-Change-Id']
         if change_id in merged_ids:
             if options.read:
-                mail.fetch(email_id, "(RFC822)") #mark as read
+                mail.fetch(email_id, "(RFC822)")  # mark as read
             if change_id not in closed:
                 closed.add(change_id)
-                print "%s: '%s'" % ( message['X-Gerrit-ChangeURL'], message['Subject'].replace('\r\n',''))
+                print "%s: '%s'" % (message['X-Gerrit-ChangeURL'],
+                                    message['Subject'].replace('\r\n', ''))
     print "total: %s" % len(closed)
