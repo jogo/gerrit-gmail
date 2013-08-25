@@ -64,13 +64,12 @@ def connect_to_gmail(email, client_id, client_secret, refresh_token):
 
 
 def get_email_ids(mail, tag='OpenStack/review'):
+    """Return list of email_ids that can be fetched in bulk."""
     #TODO(jogo) this should be in a config file.
-    #TODO(jogo): make all reviews -- OpenStack/review
-    #tag = "OpenStack/review/nova"
     mail.select(tag)
     result, data = mail.search(None, "UNSEEN")
     id_list = data[0].split()
-    return id_list
+    return ','.join(id_list)
 
 
 if __name__=="__main__":
@@ -97,9 +96,13 @@ if __name__=="__main__":
     # List closed so don't display multiple times
     closed = set()
     print "Closed patches:"
-    for email_id in get_email_ids(mail):
-        result, data = mail.fetch(email_id, "(BODY.PEEK[HEADER])")
-        message = email.message_from_string(data[0][1])
+    result, data = mail.fetch(get_email_ids(mail), "(BODY.PEEK[HEADER])")
+    for msg in data:
+        if len(msg)<2:
+            # TODO(jogo) handle edge cases better
+            # this catches random parans
+            continue
+        message = email.message_from_string(msg[1])
         change_id = message['X-Gerrit-Change-Id']
         if change_id in merged_ids:
             if options.read:
