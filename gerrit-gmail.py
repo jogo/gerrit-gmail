@@ -114,15 +114,16 @@ if __name__ == "__main__":
     closed = set()
     print "Closed patches:"
     result, data = mail.fetch(get_email_ids(mail), "(BODY.PEEK[HEADER])")
-    for msg in data:
-        if len(msg)<2:
+    for blob in data:
+        if len(blob) < 2:
             # TODO(jogo) handle edge cases better
-            # this catches random parans
+            # this catches random parenthesis
             continue
-        message = email.message_from_string(msg[1])
+        message = email.message_from_string(blob[1])
         change_id = message['X-Gerrit-Change-Id']
         if change_id in merged_ids:
             if options.read:
+                email_id = blob[0].split()[0]
                 mail.fetch(email_id, "(RFC822)")  # mark as read
             if change_id not in closed:
                 closed.add(change_id)
