@@ -3,7 +3,8 @@ email=email@gmail.com
 client_id=123456789.apps.googleusercontent.com
 client_secret=secret
 refresh_token=big-token
-tag=tag where gerrit emails are stored under
+# tag where gerrit emails are stored under, default will check all email
+tag=[Gmail]/All Mail
 
 [gerrit]
 username=your-username

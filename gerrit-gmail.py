@@ -85,6 +85,8 @@ def get_email_ids(mail, tag):
     mail.select(tag)
     result, data = mail.search(None, "UNSEEN")
     id_list = data[0].split()
+    if len(id_list) == 0:
+        print "no emails found, something is wrong"
     return ','.join(id_list)
 
 
