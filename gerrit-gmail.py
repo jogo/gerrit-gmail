@@ -79,9 +79,9 @@ def connect_to_gmail(email, client_id, client_secret, refresh_token):
     return mail
 
 
-def get_email_ids(mail, tag='OpenStack/review'):
+def get_email_ids(mail, tag):
     """Return list of email_ids that can be fetched in bulk."""
-    #TODO(jogo) this should be in a config file.
+    # tag where gerrit emails are stored
     mail.select(tag)
     result, data = mail.search(None, "UNSEEN")
     id_list = data[0].split()
@@ -113,7 +113,9 @@ if __name__ == "__main__":
     # List closed so don't display multiple times
     closed = set()
     print "Closed patches:"
-    result, data = mail.fetch(get_email_ids(mail), "(BODY.PEEK[HEADER])")
+    tag = configparser.get("gmail", "tag")
+    result, data = mail.fetch(get_email_ids(mail, tag),
+                              "(BODY.PEEK[HEADER])")
     for blob in data:
         if len(blob) < 2:
             # TODO(jogo) handle edge cases better
