@@ -90,7 +90,31 @@ def get_email_ids(mail, tag):
     return ','.join(id_list)
 
 
-if __name__ == "__main__":
+def process_mail(mail, tag, change_ids, read):
+    # List closed so don't display multiple times
+    closed = set()
+    result, data = mail.fetch(get_email_ids(mail, tag),
+                              "(BODY.PEEK[HEADER])")
+    for blob in data:
+        if len(blob) < 2:
+            # TODO(jogo) handle edge cases better
+            # this catches random parenthesis
+            continue
+        message = email.message_from_string(blob[1])
+        change_id = message['X-Gerrit-Change-Id']
+
+        if change_id in change_ids:
+            if read:
+                email_id = blob[0].split()[0]
+                mail.fetch(email_id, "(RFC822)")  # mark as read
+            if change_id not in closed:
+                closed.add(change_id)
+                print "%s: '%s'" % (message['X-Gerrit-ChangeURL'],
+                                    message['Subject'].replace('\r\n', ''))
+    print "total: %s" % len(closed)
+
+
+def main():
     configparser = ConfigParser.ConfigParser()
     configparser.read('gerrit-gmail.conf')
 
@@ -106,31 +130,16 @@ if __name__ == "__main__":
         status = 'abandoned'
     merged_ids = get_review_ids(configparser.get("gerrit", "username"),
                                 status=status)
+
     mail = connect_to_gmail(
         configparser.get("gmail", "email"),
         configparser.get("gmail", "client_id"),
         configparser.get("gmail", "client_secret"),
         configparser.get("gmail", "refresh_token"))
 
-    # List closed so don't display multiple times
-    closed = set()
-    print "Closed patches:"
     tag = configparser.get("gmail", "tag")
-    result, data = mail.fetch(get_email_ids(mail, tag),
-                              "(BODY.PEEK[HEADER])")
-    for blob in data:
-        if len(blob) < 2:
-            # TODO(jogo) handle edge cases better
-            # this catches random parenthesis
-            continue
-        message = email.message_from_string(blob[1])
-        change_id = message['X-Gerrit-Change-Id']
-        if change_id in merged_ids:
-            if options.read:
-                email_id = blob[0].split()[0]
-                mail.fetch(email_id, "(RFC822)")  # mark as read
-            if change_id not in closed:
-                closed.add(change_id)
-                print "%s: '%s'" % (message['X-Gerrit-ChangeURL'],
-                                    message['Subject'].replace('\r\n', ''))
-    print "total: %s" % len(closed)
+    process_mail(mail, tag, merged_ids, options.read)
+
+
+if __name__ == "__main__":
+    main()
