@@ -23,6 +23,7 @@ import json
 import optparse
 import subprocess
 import sys
+import time
 
 import oauth2
 
@@ -115,6 +116,7 @@ def process_mail(mail, tag, change_ids, read):
 
 
 def main():
+    print time.strftime("%c")
     configparser = ConfigParser.ConfigParser()
     configparser.read('gerrit-gmail.conf')
 
