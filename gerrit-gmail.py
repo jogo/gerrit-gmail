@@ -29,33 +29,36 @@ import oauth2
 
 
 def run(cmd):
-    print cmd
+    print(cmd)
     obj = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT,
                            shell=True)
     (out, _) = obj.communicate()
     if obj.returncode != 0:
-        print "The command '%s' terminated with an error." % cmd
+        print("The command '%s' terminated with an error." % cmd)
         sys.exit(obj.returncode)
     return out
 
 
-def get_review_ids(username, status):
+def get_review_ids(username, and_abandoned=False):
     # TODO(jogo) un-hardcode server address
+    status = 'status:merged'
+    if and_abandoned:
+        status = "(status:merged OR status:abandoned)"
     blob = run("ssh %s@review.openstack.org -p 29418 gerrit query "
-               "--format=JSON is:watched status:%s" % (username, status))
-    merged_ids = []
+               "--format=JSON 'is:watched %s'" % (username, status))
+    merged_ids = {}
     for line in blob.strip().split('\n'):
         review = json.loads(line)
         if "id" not in review:
             continue
-        merged_ids.append(review["id"])
+        merged_ids[review["id"]]=review['status']
     return merged_ids
 
 
 def connect_to_gmail(email, client_id, client_secret, refresh_token):
     access_token = None
-    print "connecting to %s" % email
+    print("connecting to %s" % email)
 
     if access_token is None:
         response = oauth2.RefreshToken(client_id, client_secret, refresh_token)
@@ -74,7 +77,7 @@ def connect_to_gmail(email, client_id, client_secret, refresh_token):
     try:
         mail.authenticate('XOAUTH2', lambda x: oauth2String)
     except Exception:
-        print "Bad access token"
+        print("Bad access token")
         # TODO(jogo): on bad token delete cached token, use cached token
         raise
     return mail
@@ -87,7 +90,7 @@ def get_email_ids(mail, tag):
     result, data = mail.search(None, "UNSEEN")
     id_list = data[0].split()
     if len(id_list) == 0:
-        print "no emails found, something is wrong"
+        print("no emails found, something is wrong")
     return ','.join(id_list)
 
 
@@ -110,8 +113,10 @@ def process_mail(mail, tag, change_ids, read):
                 mail.fetch(email_id, "(RFC822)")  # mark as read
             if change_id not in closed:
                 closed.add(change_id)
-                print "%s: '%s'" % (message['X-Gerrit-ChangeURL'],
-                                    message['Subject'].replace('\r\n', ''))
+                print "%s: ('%s') %s" % (
+                    message['X-Gerrit-ChangeURL'],
+                    change_ids[change_id],
+                    message['Subject'].replace('\r\n', ''))
     print "total: %s" % len(closed)
 
 
@@ -124,14 +129,11 @@ def main():
     optparser.add_option('-r', '--read', action='store_true',
                          help='mark emails as read')
     optparser.add_option('-a', '--abandoned', action='store_true',
-                         help='get abandoned patches, instead of merged')
+                         help='use abandoned patches in addition toof merged')
     options, args = optparser.parse_args()
 
-    status = 'merged'
-    if options.abandoned:
-        status = 'abandoned'
-    merged_ids = get_review_ids(configparser.get("gerrit", "username"),
-                                status=status)
+    change_ids = get_review_ids(configparser.get("gerrit", "username"),
+                                and_abandoned=options.abandoned)
 
     mail = connect_to_gmail(
         configparser.get("gmail", "email"),
@@ -140,7 +142,7 @@ def main():
         configparser.get("gmail", "refresh_token"))
 
     tag = configparser.get("gmail", "tag")
-    process_mail(mail, tag, merged_ids, options.read)
+    process_mail(mail, tag, change_ids, options.read)
 
 
 if __name__ == "__main__":
